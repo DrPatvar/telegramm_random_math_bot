@@ -1,6 +1,6 @@
 <configuration>
 
-    <property name="HOME_LOG" value="/var/log/proj3ct.io/tg-joke-bot/app.log"/>
+    <property name="HOME_LOG" value="/var/log/proj3ct.io/tg-mult-bot/app.log"/>
 
     <appender name="FILE-ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${HOME_LOG}</file>
@@ -20,7 +20,7 @@
         </encoder>
     </appender>
 
-    <logger name="io.proj3ct.telegramjokebot" level="debug" additivity="false">
+    <logger name="io.proj3ct.telegrammultbot" level="debug" additivity="false">
         <appender-ref ref="FILE-ROLLING"/>
     </logger>
 

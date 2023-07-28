@@ -1,4 +1,4 @@
-package io.proj3ct.telegramjokebot;
+package io.proj3ct.telegrammultbot;
 
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

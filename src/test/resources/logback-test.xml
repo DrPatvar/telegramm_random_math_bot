@@ -7,5 +7,5 @@
     <root level="error">
         <appender-ref ref="STDOUT"/>
     </root>
-    <logger name="io.proj3ct.telegramjokebot" level="debug"/>
+    <logger name="io.proj3ct.telegrammultbot" level="debug"/>
 </configuration>

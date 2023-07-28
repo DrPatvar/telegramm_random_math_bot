@@ -1,18 +1,16 @@
-package io.proj3ct.telegramjokebot.model;
+package io.proj3ct.telegrammultbot.model;
 
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.Data;
 
-@Entity(name = "usersDataTable") // This tells Hibernate to make a table out of this class
+@Entity(name = "users")
 @Data
 public class User {
 
     @Id
     private Long chatId;
-
-    private Boolean embedeJoke;
 
     private String phoneNumber;
 
@@ -23,10 +21,6 @@ public class User {
     private String lastName;
 
     private String userName;
-
-    private Double latitude;
-
-    private Double longitude;
 
     private String bio;
 
