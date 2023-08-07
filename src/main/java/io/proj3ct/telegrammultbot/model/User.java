@@ -16,6 +16,8 @@ public class User {
 
     private java.sql.Timestamp registeredAt;
 
+    private String levelSelection;
+
     private String firstName;
 
     private String lastName;

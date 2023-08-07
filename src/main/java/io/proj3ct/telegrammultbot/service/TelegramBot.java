@@ -21,8 +21,14 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static io.proj3ct.telegrammultbot.util.LevelSelection.levelSelection;
 
 @Component
 @Slf4j
@@ -36,15 +42,15 @@ public class TelegramBot extends TelegramLongPollingBot {
     @Autowired
     private MultiplicationRepository multiplicationRepository;
 
-    static final int MAX_MULT_ID_MINUS_ONE = 8;
-
     static final String NEXT_EXAM = "Следующий пример";
 
     public TelegramBot(BotConfig config) {
         this.config = config;
         List<BotCommand> listOfCommands = new ArrayList<>();
-        listOfCommands.add(new BotCommand("/start", "начало"));
+        listOfCommands.add(new BotCommand("/start", "Начало"));
         listOfCommands.add(new BotCommand("/mult", "Задачи"));
+        listOfCommands.add(new BotCommand("/statistics", "Результаты"));
+        listOfCommands.add(new BotCommand("/help", "Помощь"));
         try {
             this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
         } catch (TelegramApiException e) {
@@ -69,18 +75,31 @@ public class TelegramBot extends TelegramLongPollingBot {
             long chatId = update.getMessage().getChatId();
             switch (messageText) {
                 case "/start" -> {
-                    showStart(chatId, update.getMessage().getChat().getFirstName());
-                    creatUser(update);
+                    start(update, chatId);
                 }
                 case "/mult" -> {
-                    RandomNumber randomNumber = new RandomNumber();
-                    sendMessage(randomNumber.getStringExample(), chatId);
-                    Multiplication multiplication = new Multiplication(randomNumber.getStringExample(), randomNumber.getAnswer(), chatId);
-                    multiplicationRepository.save(multiplication);
+                    calculation(chatId);
                 }
-                case "/exit", "/statistics" -> {
+                case "/statistics" -> {
+                    List<Multiplication> multiplicationList = multiplicationRepository.findByChatIdAndDateCompleteAfter(chatId, Timestamp.valueOf(LocalDateTime.of(LocalDate.now(), LocalTime.MIN)));
+                    String msg = "Твои результаты за сегодня ";
+                    String msg2 = "У вас нет решенных задач ";
+                    statistics(update, chatId, multiplicationList, msg, msg2);
+                }
+                case "/all_statistics" -> {
+                    List<Multiplication> multiplicationList = multiplicationRepository.getByChatId(chatId);
+                    String msg = "Твои результаты ";
+                    String msg2 = "У вас нет решенных задач";
+                    statistics(update, chatId, multiplicationList, msg, msg2);
+                }
 
+                case "/help" -> {
+                    sendMessage("/start - начала программы\n" +
+                            "/mult - выдача новой задачи для решения\n" +
+                            "/statistics - статистика решений за текущий день\n" +
+                            "/all_statistics - статистика решений за весь период\n", chatId);
                 }
+
                 default -> {
                     List<Multiplication> multiplicationList = multiplicationRepository.getByChatId(chatId);
                     Multiplication dbMultiplication = multiplicationList.get(0);
@@ -89,12 +108,9 @@ public class TelegramBot extends TelegramLongPollingBot {
                     try {
                         answer = Integer.parseInt(update.getMessage().getText());
                         if (answer == dbAnswer) {
-                            sendMessage("Правильно", chatId);
-                            dbMultiplication.setVerify(true);
-                            dbMultiplication.setDateComplete(Timestamp.valueOf(LocalDateTime.now()));
-                            multiplicationRepository.save(dbMultiplication);
+                            addAnswerDB(chatId, dbMultiplication, answer, "Правильно ", ":smile:", true);
                         } else {
-                            sendMessage("Неправильно", chatId);
+                            addAnswerDB(chatId, dbMultiplication, answer, "Неправильно ", ":frowning_face:", false);
                         }
                     } catch (Exception e) {
                         sendMessage("Введите цифры", chatId);
@@ -105,18 +121,59 @@ public class TelegramBot extends TelegramLongPollingBot {
         } else if (update.hasCallbackQuery()) {
             String callbackData = update.getCallbackQuery().getData();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
-            if (callbackData.equals(NEXT_EXAM)) {
-                RandomNumber randomNumber = new RandomNumber();
-                var mult = getRandomMult();
-                mult.ifPresent(randomMult -> addButtonAndSendMessage(randomMult.getBody(), chatId));
+            switch (callbackData) {
+                case "Следующий пример" -> {
+                    calculation(chatId);
+                }
+                case "EASY" -> {
+                    addButtonAndSendMessage("Вы выбрали легкий уровень, умножение чисел от 1 до 5", chatId);
+                    updateUser(callbackData, chatId);
+                }
+                case "MEDIUM"->{
+                    addButtonAndSendMessage("Вы выбрали средний уровень, умножение чисел от 1 до 7", chatId);
+                    updateUser(callbackData, chatId);
+                }
+                case "HARD"->{
+                    addButtonAndSendMessage("Вы выбрали сложный уровень, умножение чисел от 1 до 9", chatId);
+                    updateUser(callbackData, chatId);
+                }
             }
         }
     }
 
-    private Optional<Multiplication> getRandomMult() {
-        var r = new Random();
-        var randomId = r.nextInt(MAX_MULT_ID_MINUS_ONE) + 1;
-        return multiplicationRepository.findById(randomId);
+    private void addAnswerDB(long chatId, Multiplication dbMultiplication, int answer, String s, String s2, boolean b) {
+        addButtonAndSendMessage(EmojiParser.parseToUnicode(s + s2), chatId);
+        dbMultiplication.setVerify(b);
+        dbMultiplication.setYourAnswer(answer);
+        dbMultiplication.setDateComplete(Timestamp.valueOf(LocalDateTime.now()));
+        multiplicationRepository.save(dbMultiplication);
+    }
+
+    private void statistics(Update update, long chatId, List<Multiplication> multiplicationList, String message, String messageFoul) {
+        if (!multiplicationList.isEmpty()) {
+            sendMessage(message + update.getMessage().getChat().getFirstName(), chatId);
+            for (Multiplication mult : multiplicationList) {
+                String answerEmoji = mult.isVerify() ? ":heavy_check_mark: " : ":x: ";
+                String yourAnswer = mult.getYourAnswer()!=null ? String.valueOf(mult.getYourAnswer())  : "Не решен";
+                sendMessage(EmojiParser.parseToUnicode(answerEmoji) + mult.getBody() + " = " + yourAnswer, chatId);
+            }
+        } else {
+            sendMessage(messageFoul, chatId);
+        }
+    }
+
+    private void calculation(long chatId) {
+        User user = userRepository.getUserByChatId(chatId);
+        RandomNumber.randomNumber(user.getLevelSelection());
+        sendMessage(RandomNumber.stringExample, chatId);
+        Multiplication multiplication = new Multiplication(RandomNumber.stringExample, RandomNumber.answer, chatId);
+        multiplicationRepository.save(multiplication);
+    }
+
+    private void start(Update update, long chatId) {
+        showStart(chatId, update.getMessage().getChat().getFirstName());
+        creatUser(update);
+        send(levelSelection(chatId));
     }
 
     private void addButtonAndSendMessage(String mult, long chatId) {
@@ -129,7 +186,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         List<InlineKeyboardButton> rowInline = new ArrayList<>();
         var inlinekeyboardButton = new InlineKeyboardButton();
         inlinekeyboardButton.setCallbackData(NEXT_EXAM);
-        inlinekeyboardButton.setText(EmojiParser.parseToUnicode("следующий пример " + ":rolling_on_the_floor_laughing:"));
+        inlinekeyboardButton.setText(EmojiParser.parseToUnicode("Новый пример " + ":point_up_2:"));
         rowInline.add(inlinekeyboardButton);
         rowsInline.add(rowInline);
         markupInline.setKeyboard(rowsInline);
@@ -165,6 +222,12 @@ public class TelegramBot extends TelegramLongPollingBot {
         user.setBio(update.getMessage().getChat().getBio());
         user.setLastName(update.getMessage().getChat().getLastName());
         user.setDescription(update.getMessage().getChat().getDescription());
+        userRepository.save(user);
+    }
+
+    private void updateUser (String callbackData, long chatId){
+        User user = userRepository.getUserByChatId(chatId);
+        user.setLevelSelection(callbackData);
         userRepository.save(user);
     }
 }

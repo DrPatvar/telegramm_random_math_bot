@@ -5,11 +5,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 public interface MultiplicationRepository extends CrudRepository<Multiplication, Integer> {
 
     @Query("SELECT m FROM Multiplication m WHERE m.chatId =:chatId ORDER BY m.id DESC")
-    List<Multiplication>  getByChatId (@Param("chatId") Long chatId);
+    List<Multiplication> getByChatId(@Param("chatId") Long chatId);
+
+    List<Multiplication> findByChatIdAndDateCompleteAfter(Long chatId, Timestamp dateComplete);
 
 }

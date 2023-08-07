@@ -21,6 +21,8 @@ public class Multiplication {
 
     private Integer answer;
 
+    private Integer yourAnswer;
+
     private Long chatId;
 
     private boolean verify;
